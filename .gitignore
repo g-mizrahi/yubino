@@ -1,0 +1,6 @@
+client
+.env
+.vscode
+*.o
+*.elf
+*.hex
