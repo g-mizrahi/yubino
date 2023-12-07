@@ -1,6 +1,7 @@
 #include <avr/interrupt.h>
 #include <stdio.h>
 #include <avr/io.h>
+#include <avr/eeprom.h>
 
 #include "uart.h"
 #include "utils.h"
@@ -16,6 +17,7 @@ void setup()
     sei();
 }
 
+// #include <util/delay.h>
 int main()
 {
     setup();
@@ -25,15 +27,20 @@ int main()
     while (1)
     {
         status = STATUS_OK; // No error yet
-        status = recv_command(&command);
+        status = recv_command(command);
 
         if (status == STATUS_OK)
         {
             // Only execute the command if there was no error on reception
-            status = exec_command(&command);
+            status = exec_command(command);
         }
         else
         {
+            send_error_message(&status);
+            continue;
+        }
+
+        if (status != STATUS_OK){
             send_error_message(&status);
             continue;
         }

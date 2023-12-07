@@ -11,7 +11,7 @@ CLK = 16000000
 PRG = arduino -P /dev/ttyACM0
 # program source files
 INC = ./include
-EXT = ./lib/micr-ecc
+EXT = ./lib/micro-ecc
 
 INC_C = $(foreach dir, $(INC), $(wildcard $(dir)/*.c))
 INC_H = $(foreach dir, $(INC), $(wildcard $(dir)/*.h))

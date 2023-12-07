@@ -13,12 +13,13 @@
 #define E2START 0
 #define MAX_CREDENTIAL_COUNT (E2END - E2START) / 57
 
-volatile uint8_t button_pushed = 0;
-volatile uint8_t count_half_seconds = 0;
+volatile uint8_t button_pushed;
+volatile uint8_t count_half_seconds;
 
 status_t get_approval(void);
-void list_credentials(void);
-void reset_eeprom(void);
+status_t list_credentials(void);
+status_t reset_eeprom(void);
+status_t make_credential(void);
 
 status_t recv_command(uint8_t command[41])
 {
@@ -59,17 +60,19 @@ status_t recv_command(uint8_t command[41])
         return (STATUS_OK);
 
     default:
-        return (STATUS_ERR_BAD_PARAMETER);
+        return (STATUS_ERR_COMMAND_UNKOWN);
     }
 }
 
 status_t exec_command(uint8_t command[41])
 {
+    status_t status;
     switch (command[0])
     {
     case COMMAND_LIST_CREDENTIALS:
-        list_credentials();
-        return (STATUS_OK);
+        status = list_credentials();
+        return (status);
+
     case COMMAND_MAKE_CREDENTIAL:
         break;
 
@@ -77,13 +80,17 @@ status_t exec_command(uint8_t command[41])
         break;
 
     case COMMAND_RESET:
-        reset_eeprom();
-        break;
+        status = get_approval();
+        if (status == STATUS_OK)
+        {
+            status = reset_eeprom();
+        }
+        return (status);
 
     default:
         break;
     }
-    return(STATUS_OK);
+    return (STATUS_OK);
 }
 
 void send_error_message(status_t *status)
@@ -126,6 +133,7 @@ status_t get_approval()
     // Disable the pin change interrupt
     PCMSK0 &= ~_BV(PCINT0);
     stop_timer1();
+    switch_LED_off();
 
     if (button_pushed)
     {
@@ -137,32 +145,41 @@ status_t get_approval()
     }
 }
 
-void list_credentials()
+status_t list_credentials()
 {
-    uint16_t eeprom_start = E2START;
-    uint8_t credential_count = eeprom_read_byte((void *)&eeprom_start);
-    if (credential_count > MAX_CREDENTIAL_COUNT)
+    uint8_t credential_total = eeprom_read_byte((uint8_t *)E2START);
+
+    if (credential_total > MAX_CREDENTIAL_COUNT)
     {
-        credential_count = MAX_CREDENTIAL_COUNT;
+        credential_total = MAX_CREDENTIAL_COUNT;
     }
 
     uint8_t credential_id[16];
     uint8_t app_id[20];
-    uint16_t credential_id_offset = 1 + eeprom_start;
-    uint16_t app_id_offset;
 
     putc(STATUS_OK, stdout);
-    fwrite(&credential_count, 1, 1, stdout);
-    for (; credential_id_offset < credential_count * 57; credential_id_offset = credential_id_offset + 57)
+    putc(credential_total, stdout);
+    for (uint16_t credential_address = 1 + E2START; credential_address < credential_total * 57; credential_address = credential_address + 57)
     {
-        app_id_offset = credential_id_offset + 16;
-        eeprom_read_block(credential_id, &credential_id_offset, 16);
-        eeprom_read_block(app_id, &app_id_offset, 20);
-        fwrite(credential_id, 1, 20, stdout);
-        fwrite(app_id, 1, 16, stdout);
+        // Read the credential id
+        eeprom_read_block(credential_id, (void *)credential_address, 16);
+
+        eeprom_read_block(app_id, (void *)credential_address + 16, 20);
+
+        // print the data
+        fwrite(credential_id, 1, 16, stdout);
+        fwrite(app_id, 1, 20, stdout);
     }
+    return (STATUS_OK);
 }
 
-void reset_eeprom()
+status_t reset_eeprom()
 {
+    uint8_t credential_total = eeprom_read_byte((uint8_t *)E2START);
+    for (uint16_t eeprom_address = E2START; eeprom_address <= E2START + 57 * credential_total; eeprom_address++)
+    {
+        eeprom_update_byte((uint8_t *)eeprom_address, 0xff);
+    }
+    putc(STATUS_OK, stdout);
+    return (STATUS_OK);
 }
